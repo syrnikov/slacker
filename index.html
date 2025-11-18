@@ -36,6 +36,12 @@
       align-items: center;
       justify-content: center;
       padding: 12px;
+      user-select: none;
+    }
+
+    input,
+    textarea {
+      user-select: text;
     }
 
     body.no-animations *,
@@ -161,6 +167,24 @@
       gap: 4px;
       color: var(--text-soft);
       white-space: nowrap;
+    }
+
+    .status-cluster {
+      display: flex;
+      gap: 4px;
+      align-items: center;
+    }
+
+    .weather-pill {
+      min-width: 32px;
+      min-height: 28px;
+      border: 1px solid #f2c89c;
+      background: #fff2de;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1rem;
+      padding: 0 6px;
     }
 
     .status-pill span {
@@ -453,6 +477,112 @@
       margin-bottom: 4px;
     }
 
+    .weather-summary {
+      font-size: 0.78rem;
+      color: var(--text-soft);
+      margin-bottom: 4px;
+    }
+
+    .weather-days {
+      display: grid;
+      gap: 4px;
+    }
+
+    .weather-day {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border: 1px solid #f1d2ac;
+      padding: 4px 6px;
+      background: #fffaf2;
+      font-size: 0.78rem;
+    }
+
+    .weather-day span:first-child {
+      font-weight: 600;
+    }
+
+    .slack-form {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin-bottom: 4px;
+    }
+
+    .slack-form input[type="text"] {
+      flex: 1 1 120px;
+    }
+
+    .slacking-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .slacking-corner {
+      display: inline-flex;
+      gap: 4px;
+    }
+
+    .tiny-icon-btn {
+      border: 1px solid #d9b48b;
+      background: #fff4e5;
+      font-size: 0.75rem;
+      width: 26px;
+      height: 26px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+    }
+
+    .tiny-icon-btn:active {
+      transform: translateY(1px);
+    }
+
+    .slack-list {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .slack-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border: 1px solid #f1d2ac;
+      padding: 4px 6px;
+      background: #fffaf2;
+      font-size: 0.78rem;
+      gap: 4px;
+    }
+
+    .slack-item-label {
+      font-weight: 600;
+    }
+
+    .slack-item-time {
+      color: var(--text-soft);
+      font-size: 0.74rem;
+    }
+
+    .slack-item-actions {
+      display: inline-flex;
+      gap: 3px;
+    }
+
+    .slack-empty {
+      font-size: 0.78rem;
+      color: var(--text-soft);
+    }
+
+    .slack-error {
+      font-size: 0.72rem;
+      color: #b30000;
+      min-height: 14px;
+    }
+
     .mood-row {
       display: flex;
       gap: 6px;
@@ -642,8 +772,11 @@
           <div class="title-block">
             <div class="app-subtitle">lofi shift survival, not productivity</div>
           </div>
-          <div class="status-pill" id="status-pill">
-            <span>🙂</span><span id="status-text">Status: present</span>
+          <div class="status-cluster">
+            <div class="status-pill" id="status-pill">
+              <span>🙂</span><span id="status-text">Status: present</span>
+            </div>
+            <div class="weather-pill" id="weather-emoji" title="Peeking out the bakery window">--</div>
           </div>
         </div>
 
@@ -811,6 +944,31 @@
           <div class="side-section-title">Tiny reminder</div>
           <div style="font-size:0.8rem;" id="reminder-text"></div>
         </div>
+
+        <div class="card" id="weather-card">
+          <div class="side-section-title">Weather spells</div>
+          <div class="weather-summary" id="weather-summary">Peeking outside…</div>
+          <div class="weather-days">
+            <div class="weather-day" id="weather-today"><span>Today</span><span>--</span></div>
+            <div class="weather-day" id="weather-tomorrow"><span>Tomorrow</span><span>--</span></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="side-section-title slacking-head">
+            Slacking schedule
+            <div class="slacking-corner">
+              <button type="button" class="tiny-icon-btn" id="slack-add-btn" title="Add this break">+</button>
+              <button type="button" class="tiny-icon-btn" id="slack-remove-btn" title="Remove last break">−</button>
+            </div>
+          </div>
+          <div class="slack-form">
+            <input type="text" id="slack-label" placeholder="fika break" />
+            <input type="time" id="slack-time" />
+          </div>
+          <div class="slack-error" id="slack-error"></div>
+          <div class="slack-list" id="slack-list"></div>
+        </div>
       </div>
     </div>
   </div>
@@ -853,6 +1011,9 @@
         date: null,
         count: 0,
         lastSipTs: null
+      },
+      slacking: {
+        breaks: []
       },
       ui: {
         sortMode: "short",
@@ -916,10 +1077,79 @@
       { label: "Scrolling sessions (2 min)", minutes: 2 }
     ];
 
+    const DEFAULT_LOCATION = { lat: 59.3293, lon: 18.0686 };
+    const WEATHER_CODE_EMOJI = {
+      0: "☀️",
+      1: "🌤️",
+      2: "⛅",
+      3: "☁️",
+      45: "🌫️",
+      48: "🌫️",
+      51: "🌦️",
+      53: "🌦️",
+      55: "🌧️",
+      56: "🌧️",
+      57: "🌧️",
+      61: "🌧️",
+      63: "🌧️",
+      65: "🌧️",
+      66: "🌧️",
+      67: "🌧️",
+      71: "🌨️",
+      73: "🌨️",
+      75: "❄️",
+      77: "🌨️",
+      80: "🌦️",
+      81: "🌧️",
+      82: "⛈️",
+      85: "❄️",
+      86: "❄️",
+      95: "⛈️",
+      96: "⛈️",
+      99: "⛈️"
+    };
+
+    const WEATHER_CODE_TEXT = {
+      0: "clear skies",
+      1: "mostly clear",
+      2: "partly cloudy",
+      3: "cloud blanket",
+      45: "foggy vibes",
+      48: "foggy vibes",
+      51: "light drizzle",
+      53: "gentle drizzle",
+      55: "steady rain",
+      56: "icy drizzle",
+      57: "icy drizzle",
+      61: "light rain",
+      63: "rain showers",
+      65: "heavy rain",
+      66: "freezing rain",
+      67: "freezing rain",
+      71: "light snow",
+      73: "snow",
+      75: "heavy snow",
+      77: "snow grains",
+      80: "showers",
+      81: "showers",
+      82: "stormy showers",
+      85: "snow bursts",
+      86: "snow bursts",
+      95: "thunderstorm",
+      96: "thunderstorm",
+      99: "storm drama"
+    };
+
     let quoteIndex = 0;
     let tipIndex = 0;
     let reminderIndex = 0;
     let summaryLast = "";
+    let weatherState = {
+      emoji: "--",
+      summary: "Peeking outside…",
+      today: null,
+      tomorrow: null
+    };
 
     // --------- UTIL ---------
 
@@ -958,6 +1188,14 @@
       const mm = String(m).padStart(2, "0");
       const ss = String(s).padStart(2, "0");
       return `${hh}:${mm}:${ss}`;
+    }
+
+    function minutesToTimeString(mins) {
+      if (mins == null) return "--:--";
+      const wrapped = ((mins % (24 * 60)) + 24 * 60) % (24 * 60);
+      const h = Math.floor(wrapped / 60);
+      const m = wrapped % 60;
+      return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
     }
 
     function copingApproxText(mins, cooked) {
@@ -1163,6 +1401,95 @@
       return Math.floor(diffMs / 60000);
     }
 
+    // --------- WEATHER ---------
+
+    function weatherCodeToEmoji(code) {
+      return WEATHER_CODE_EMOJI[code] || "🌡️";
+    }
+
+    function weatherCodeToText(code) {
+      return WEATHER_CODE_TEXT[code] || "weather doing its thing";
+    }
+
+    function updateWeatherUI() {
+      const emojiEl = document.getElementById("weather-emoji");
+      if (emojiEl) {
+        emojiEl.textContent = weatherState.emoji || "--";
+        emojiEl.title = weatherState.summary || "Weather loading";
+      }
+
+      const summaryEl = document.getElementById("weather-summary");
+      if (summaryEl) summaryEl.textContent = weatherState.summary || "Peeking outside…";
+
+      const todayEl = document.getElementById("weather-today");
+      const tomorrowEl = document.getElementById("weather-tomorrow");
+
+      if (todayEl) {
+        const today = weatherState.today;
+        todayEl.innerHTML = `<span>Today</span><span>${today ? today : "--"}</span>`;
+      }
+      if (tomorrowEl) {
+        const tomorrow = weatherState.tomorrow;
+        tomorrowEl.innerHTML = `<span>Tomorrow</span><span>${tomorrow ? tomorrow : "--"}</span>`;
+      }
+    }
+
+    function processDailyWeather(daily, index) {
+      if (!daily) return null;
+      const weatherCodes = daily.weathercode || [];
+      const maxArr = daily.temperature_2m_max || [];
+      const minArr = daily.temperature_2m_min || [];
+      const code = weatherCodes[index];
+      const max = maxArr[index];
+      const min = minArr[index];
+      if (code == null || max == null || min == null) return null;
+      const emoji = weatherCodeToEmoji(code);
+      const desc = weatherCodeToText(code);
+      return `${emoji} ${Math.round(min)}°/${Math.round(max)}°C · ${desc}`;
+    }
+
+    function fetchWeather(lat, lon) {
+      const url =
+        `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
+        `&current_weather=true&daily=weathercode,temperature_2m_max,temperature_2m_min&forecast_days=3&timezone=auto`;
+      fetch(url)
+        .then((res) => res.json())
+        .then((data) => {
+          const currentWeather = data && data.current_weather ? data.current_weather : null;
+          const currentCode = currentWeather ? currentWeather.weathercode : undefined;
+          const currentTemp = currentWeather ? currentWeather.temperature : undefined;
+          weatherState.emoji = weatherCodeToEmoji(currentCode);
+          const tempText = typeof currentTemp === "number" ? `${Math.round(currentTemp)}°C` : "mystery temps";
+          weatherState.summary = currentCode
+            ? `Now: ${weatherCodeToText(currentCode)} near ${tempText}`
+            : "Window vibes unavailable.";
+          weatherState.today = processDailyWeather(data.daily, 0);
+          weatherState.tomorrow = processDailyWeather(data.daily, 1);
+          updateWeatherUI();
+        })
+        .catch(() => {
+          weatherState.summary = "Weather goblins napping. Try again later.";
+          updateWeatherUI();
+        });
+    }
+
+    function initWeatherWidget() {
+      updateWeatherUI();
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            fetchWeather(pos.coords.latitude, pos.coords.longitude);
+          },
+          () => {
+            fetchWeather(DEFAULT_LOCATION.lat, DEFAULT_LOCATION.lon);
+          },
+          { timeout: 5000 }
+        );
+      } else {
+        fetchWeather(DEFAULT_LOCATION.lat, DEFAULT_LOCATION.lon);
+      }
+    }
+
     // --------- RENDER: NOW TAB ---------
 
     function renderNowTab() {
@@ -1216,7 +1543,14 @@
       phaseText.textContent = phaseFromPct(info.pct);
 
       if (info.remaining > 0) {
-        anchorText.textContent = `Next stop: 🏠 home in ${formatHM(info.remaining)}.`;
+        const nextBreak = getUpcomingBreak(info, nowM);
+        if (nextBreak) {
+          anchorText.textContent = `Next stop: ☕ ${nextBreak.label} in ${formatHM(nextBreak.diff)} (at ${
+            nextBreak.time
+          }).`;
+        } else {
+          anchorText.textContent = `Next stop: 🏠 home in ${formatHM(info.remaining)}.`;
+        }
       } else {
         anchorText.textContent = "You’re free. At least, you should be.";
       }
@@ -1306,6 +1640,158 @@
       document.getElementById("now-water-fill").style.width = pct + "%";
     }
 
+    // --------- SLACKING ---------
+
+    function setSlackingError(msg) {
+      const err = document.getElementById("slack-error");
+      if (err) err.textContent = msg || "";
+    }
+
+    function renderSlackingWidget() {
+      const listEl = document.getElementById("slack-list");
+      if (!listEl) return;
+      const breaks = state.slacking && state.slacking.breaks ? state.slacking.breaks.slice() : [];
+      listEl.innerHTML = "";
+      if (breaks.length === 0) {
+        const empty = document.createElement("div");
+        empty.className = "slack-empty";
+        empty.textContent = "No secret breaks yet. Add one above.";
+        listEl.appendChild(empty);
+        return;
+      }
+
+      breaks.sort((a, b) => {
+        const aM = parseTimeToMinutes(a.time) ?? 0;
+        const bM = parseTimeToMinutes(b.time) ?? 0;
+        return aM - bM;
+      });
+
+      breaks.forEach((item) => {
+        const row = document.createElement("div");
+        row.className = "slack-item";
+        row.dataset.id = item.id;
+
+        const meta = document.createElement("div");
+        const label = document.createElement("div");
+        label.className = "slack-item-label";
+        label.textContent = item.label || "Unnamed break";
+        const time = document.createElement("div");
+        time.className = "slack-item-time";
+        time.textContent = item.time || "--:--";
+        meta.appendChild(label);
+        meta.appendChild(time);
+
+        const actions = document.createElement("div");
+        actions.className = "slack-item-actions";
+
+        const shuffleBtn = document.createElement("button");
+        shuffleBtn.className = "tiny-icon-btn";
+        shuffleBtn.type = "button";
+        shuffleBtn.textContent = "🎲";
+        shuffleBtn.title = "Shuffle this break a little";
+        shuffleBtn.dataset.action = "shuffle";
+        shuffleBtn.dataset.id = item.id;
+
+        const removeBtn = document.createElement("button");
+        removeBtn.className = "tiny-icon-btn";
+        removeBtn.type = "button";
+        removeBtn.textContent = "−";
+        removeBtn.title = "Remove this break";
+        removeBtn.dataset.action = "remove";
+        removeBtn.dataset.id = item.id;
+
+        actions.appendChild(shuffleBtn);
+        actions.appendChild(removeBtn);
+
+        row.appendChild(meta);
+        row.appendChild(actions);
+        listEl.appendChild(row);
+      });
+    }
+
+    function addSlackBreak() {
+      const labelInput = document.getElementById("slack-label");
+      const timeInput = document.getElementById("slack-time");
+      if (!labelInput || !timeInput) return;
+      const label = labelInput.value.trim();
+      const time = timeInput.value;
+      if (!label || !time) {
+        setSlackingError("Need both a label and time for your break.");
+        return;
+      }
+      setSlackingError("");
+      const newBreak = {
+        id: Date.now().toString() + Math.random().toString(16).slice(2),
+        label,
+        time
+      };
+      if (!state.slacking) state.slacking = { breaks: [] };
+      state.slacking.breaks.push(newBreak);
+      labelInput.value = "";
+      timeInput.value = "";
+      saveState();
+      renderSlackingWidget();
+      renderNowTab();
+    }
+
+    function removeLastSlackBreak() {
+      if (!state.slacking || !state.slacking.breaks || !state.slacking.breaks.length) {
+        setSlackingError("No breaks to remove.");
+        return;
+      }
+      setSlackingError("");
+      state.slacking.breaks.pop();
+      saveState();
+      renderSlackingWidget();
+      renderNowTab();
+    }
+
+    function removeSlackBreakById(id) {
+      if (!state.slacking || !state.slacking.breaks) return;
+      state.slacking.breaks = state.slacking.breaks.filter((b) => b.id !== id);
+      saveState();
+      renderSlackingWidget();
+      renderNowTab();
+    }
+
+    function shuffleSlackBreak(id) {
+      if (!state.slacking || !state.slacking.breaks) return;
+      const item = state.slacking.breaks.find((b) => b.id === id);
+      if (!item) return;
+      const original = parseTimeToMinutes(item.time);
+      if (original == null) return;
+      let delta = Math.floor(Math.random() * 7) - 3; // -3..3
+      if (delta === 0) delta = 1;
+      let newMins = original + delta;
+      if (newMins < 0) newMins = 0;
+      if (newMins >= 24 * 60) newMins = 24 * 60 - 1;
+      item.time = minutesToTimeString(newMins);
+      saveState();
+      renderSlackingWidget();
+      renderNowTab();
+    }
+
+    function getUpcomingBreak(info, nowM) {
+      if (!info || !state.slacking || !state.slacking.breaks || !state.slacking.breaks.length) return null;
+      const shiftStartModulo = info.startM % (24 * 60);
+      let best = null;
+      state.slacking.breaks.forEach((b) => {
+        const mins = parseTimeToMinutes(b.time);
+        if (mins == null) return;
+        let absolute = mins;
+        if (info.endM > 24 * 60 && mins < shiftStartModulo) {
+          absolute += 24 * 60;
+        }
+        if (absolute < nowM || absolute > info.endM) return;
+        const diff = absolute - nowM;
+        if (diff < 0) return;
+        if (!best || diff < best.diff) {
+          best = { label: b.label, time: minutesToTimeString(absolute), diff };
+        }
+      });
+      return best;
+    }
+
     // --------- RENDER: SURVIVAL TAB ---------
 
     function pickNextQuote() {
@@ -1385,6 +1871,16 @@
       } else {
         pill.querySelector("span").textContent = "🙂";
         textEl.textContent = "Status: here-ish";
+      }
+    }
+
+    function renderCookButton() {
+      const cookBtn = document.getElementById("cook-btn");
+      if (!cookBtn) return;
+      if (state.ui.cooked) {
+        cookBtn.innerHTML = "<span>🧊</span><span>Bring me back, I guess</span>";
+      } else {
+        cookBtn.innerHTML = "<span>🍳</span><span>I’m mentally clocked out</span>";
       }
     }
 
@@ -1508,16 +2004,35 @@
       });
 
       // Cooked mode
-      document.getElementById("cook-btn").addEventListener("click", () => {
-        state.ui.cooked = true;
+      const cookBtn = document.getElementById("cook-btn");
+      cookBtn.addEventListener("click", () => {
+        state.ui.cooked = !state.ui.cooked;
         saveState();
         renderStatusPill();
+        renderCookButton();
         renderNowTab();
         const modal = document.getElementById("cook-modal");
-        modal.style.display = "flex";
+        if (state.ui.cooked) {
+          modal.style.display = "flex";
+        } else {
+          modal.style.display = "none";
+        }
       });
       document.getElementById("cook-dismiss").addEventListener("click", () => {
         document.getElementById("cook-modal").style.display = "none";
+      });
+
+      // Slacking inputs
+      document.getElementById("slack-add-btn").addEventListener("click", addSlackBreak);
+      document.getElementById("slack-remove-btn").addEventListener("click", removeLastSlackBreak);
+      document.getElementById("slack-list").addEventListener("click", (e) => {
+        const target = e.target;
+        if (!target || !target.dataset) return;
+        const action = target.dataset.action;
+        const id = target.dataset.id;
+        if (!action || !id) return;
+        if (action === "remove") removeSlackBreakById(id);
+        if (action === "shuffle") shuffleSlackBreak(id);
       });
 
       // Settings: tone
@@ -1552,6 +2067,7 @@
         settings: { ...DEFAULT_STATE.settings, ...(state.settings || {}) },
         shift: { ...DEFAULT_STATE.shift, ...(state.shift || {}) },
         water: { ...DEFAULT_STATE.water, ...(state.water || {}) },
+        slacking: { ...DEFAULT_STATE.slacking, ...(state.slacking || {}) },
         ui: { ...DEFAULT_STATE.ui, ...(state.ui || {}) }
       };
 
@@ -1568,7 +2084,10 @@
       renderMood();
       renderWater();
       renderStatusPill();
+      renderCookButton();
+      renderSlackingWidget();
       pickReminder();
+      initWeatherWidget();
 
       setInterval(() => {
         renderNowTab();
