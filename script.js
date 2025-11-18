@@ -83,7 +83,7 @@ const RANDOM_TOASTS = [
   { icon: "🌤️", text: "This is not forever. Clock time will keep moving even if your brain won’t." }
 ];
 
-const TOAST_DURATION = 2200;
+const TOAST_DURATION = 5000;
 const RANDOM_TOAST_INTERVAL = 90000;
 const RANDOM_TOAST_KICKOFF = 6000;
 
