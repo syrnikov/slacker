@@ -23,11 +23,11 @@ slacker/
 
 ## Features
 
-- Shift countdown with progress bar, anchor text, and "next stop" logic that prefers your next slacking break over the end of the shift.
+- Shift countdown with progress bar, live timeline visualization, and "next stop" logic that prefers your next slacking break over the end of the shift.
 - "Today in the bakery" dashboard with supportive reminders, rotating summaries, and a weather widget powered by the Open-Meteo API.
-- Slacking schedule widget for adding/removing/shuffling breaks plus a micro-randomizer button to keep entries feeling organic.
-- Cooked mode toggle that lets you drop into (or exit) low-power mode without losing your place.
-- Pointer/selection tweaks, custom fonts, and pixel-art frame for that cozy fake-app vibe.
+- Slacking schedule widget with emoji pickers, universal time inputs, add/remove/shuffle controls, and entries that stay in one tidy line.
+- Slide-in micro notifications that nudge you to hydrate, blink, stretch, change posture, and celebrate milestones like halfway or the final hour.
+- Cooked mode toggle that lets you drop into (or exit) low-power mode without losing your place, plus pointer/selection tweaks and a pixel-art frame for that cozy fake-app vibe.
 
 ## Environment variables / configuration
 

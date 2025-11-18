@@ -50,11 +50,11 @@
             <div class="inputs-row">
               <div class="field">
                 <label for="start-time">Shift start</label>
-                <input type="time" id="start-time" value="09:00" />
+                <input type="time" id="start-time" value="09:00" class="time-input" />
               </div>
               <div class="field">
                 <label for="end-time">Shift end</label>
-                <input type="time" id="end-time" value="17:00" />
+                <input type="time" id="end-time" value="17:00" class="time-input" />
               </div>
               <div class="field">
                 <label for="reward-text">After work I’ll… (optional)</label>
@@ -69,11 +69,21 @@
               <div class="countdown-main" id="countdown-main">--:--:--</div>
               <div class="countdown-sub" id="countdown-sub">Set your shift times to begin.</div>
 
-              <div class="progress-bar">
-                <div class="progress-fill" id="progress-fill"></div>
-              </div>
-              <div class="progress-meta" id="progress-meta">Shift: -- | Done: -- | Left: --</div>
-              <div class="phase-text" id="phase-text"></div>
+          <div class="progress-bar">
+            <div class="progress-fill" id="progress-fill"></div>
+          </div>
+          <div class="progress-meta" id="progress-meta">Shift: -- | Done: -- | Left: --</div>
+          <div class="timeline-block">
+            <div class="timeline-head">
+              <div class="timeline-title">Live schedule visualization</div>
+              <div class="timeline-meta" id="timeline-meta">Add your shift</div>
+            </div>
+            <div class="timeline-track">
+              <div class="timeline-progress" id="timeline-progress"></div>
+            </div>
+            <div class="timeline-markers" id="timeline-markers"></div>
+          </div>
+          <div class="phase-text" id="phase-text"></div>
               <div class="anchor-text" id="anchor-text"></div>
               <div class="anchor-text" id="now-water-strip"></div>
             </div>
@@ -187,49 +197,63 @@
 
       <!-- Right panel -->
       <div class="panel">
-        <div class="side-section-title">Today in the bakery</div>
-        <div style="font-size:0.8rem; color:var(--text-soft); margin-bottom:8px;">
-          This little dashboard is here to remind you there is more to life than this shift.
-          You’re not your productivity. You’re just a tired person in a cozy fake .exe window.
-        </div>
-
-        <div class="card">
-          <div class="side-section-title">Quick summary</div>
-          <div id="summary-text" style="font-size:0.8rem;"></div>
-        </div>
-
-        <div class="card">
-          <div class="side-section-title">Tiny reminder</div>
-          <div style="font-size:0.8rem;" id="reminder-text"></div>
-        </div>
-
-        <div class="card" id="weather-card">
-          <div class="side-section-title">Weather spells</div>
-          <div class="weather-summary" id="weather-summary">Peeking outside…</div>
-          <div class="weather-days">
-            <div class="weather-day" id="weather-today"><span>Today</span><span>--</span></div>
-            <div class="weather-day" id="weather-tomorrow"><span>Tomorrow</span><span>--</span></div>
+        <div class="side-scroll">
+          <div class="side-section-title">Today in the bakery</div>
+          <div style="font-size:0.8rem; color:var(--text-soft); margin-bottom:8px;">
+            This little dashboard is here to remind you there is more to life than this shift.
+            You’re not your productivity. You’re just a tired person in a cozy fake .exe window.
           </div>
-        </div>
 
-        <div class="card">
-          <div class="side-section-title slacking-head">
-            Slacking schedule
-            <div class="slacking-corner">
-              <button type="button" class="tiny-icon-btn" id="slack-add-btn" title="Add this break">+</button>
-              <button type="button" class="tiny-icon-btn" id="slack-remove-btn" title="Remove last break">−</button>
+          <div class="card">
+            <div class="side-section-title">Quick summary</div>
+            <div id="summary-text" style="font-size:0.8rem;"></div>
+          </div>
+
+          <div class="card">
+            <div class="side-section-title">Tiny reminder</div>
+            <div style="font-size:0.8rem;" id="reminder-text"></div>
+          </div>
+
+          <div class="card" id="weather-card">
+            <div class="side-section-title">Weather spells</div>
+            <div class="weather-summary" id="weather-summary">Peeking outside…</div>
+            <div class="weather-days">
+              <div class="weather-day" id="weather-today"><span>Today</span><span>--</span></div>
+              <div class="weather-day" id="weather-tomorrow"><span>Tomorrow</span><span>--</span></div>
             </div>
           </div>
-          <div class="slack-form">
-            <input type="text" id="slack-label" placeholder="fika break" />
-            <input type="time" id="slack-time" />
+
+          <div class="card">
+            <div class="side-section-title slacking-head">
+              Slacking schedule
+              <div class="slacking-corner">
+                <button type="button" class="tiny-icon-btn" id="slack-add-btn" title="Add this break">+</button>
+                <button type="button" class="tiny-icon-btn" id="slack-remove-btn" title="Remove last break">−</button>
+              </div>
+            </div>
+            <div class="slack-form">
+              <select id="slack-icon" class="slack-icon-select" aria-label="Break icon">
+                <option value="☕">☕</option>
+                <option value="🍰">🍰</option>
+                <option value="🧋">🧋</option>
+                <option value="💤">💤</option>
+                <option value="💖">💖</option>
+                <option value="🎧">🎧</option>
+                <option value="🧘">🧘</option>
+                <option value="🍪">🍪</option>
+              </select>
+              <input type="text" id="slack-label" placeholder="fika break" />
+              <input type="time" id="slack-time" class="time-input" />
+            </div>
+            <div class="slack-error" id="slack-error"></div>
+            <div class="slack-list" id="slack-list"></div>
           </div>
-          <div class="slack-error" id="slack-error"></div>
-          <div class="slack-list" id="slack-list"></div>
         </div>
       </div>
     </div>
   </div>
+
+  <div class="toast-stack" id="toast-stack"></div>
 
   <!-- Cooked modal -->
   <div class="modal-backdrop" id="cook-modal">

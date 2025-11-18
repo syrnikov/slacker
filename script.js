@@ -74,6 +74,19 @@ const REMINDERS = [
   "Your worth is not measured in emails answered or tasks completed."
 ];
 
+const RANDOM_TOASTS = [
+  { icon: "💧", text: "Water reminder: take a sip." },
+  { icon: "👁️", text: "Blink slowly and give your eyes a soft focus break." },
+  { icon: "🤸", text: "Micro stretch? Shrug, roll your shoulders, wiggle your toes." },
+  { icon: "🪑", text: "Sit/stand shuffle if you can. Change the posture, change the vibe." },
+  { icon: "💪", text: "You can do it! You’ve survived every previous workday." },
+  { icon: "🌤️", text: "This is not forever. Clock time will keep moving even if your brain won’t." }
+];
+
+const TOAST_DURATION = 2200;
+const RANDOM_TOAST_INTERVAL = 90000;
+const RANDOM_TOAST_KICKOFF = 6000;
+
 const UNITS = [
   { label: "Lo-fi tracks (3 min)", minutes: 3 },
   { label: "Tea distractions (5 min)", minutes: 5 },
@@ -156,6 +169,13 @@ let weatherState = {
   today: null,
   tomorrow: null
 };
+let randomToastTimerId = null;
+let randomToastKickoffId = null;
+const milestoneFlags = {
+  halfway: false,
+  finalHour: false,
+  breakSoonKey: null
+};
 
 // --------- UTIL ---------
 
@@ -204,6 +224,22 @@ function minutesToTimeString(mins) {
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 }
 
+function formatDisplayTimeFromMinutes(mins) {
+  if (mins == null) return "--:--";
+  const wrapped = ((mins % (24 * 60)) + 24 * 60) % (24 * 60);
+  let h = Math.floor(wrapped / 60);
+  const m = wrapped % 60;
+  const suffix = h >= 12 ? "PM" : "AM";
+  const hour12 = h % 12 || 12;
+  return `${hour12}:${String(m).padStart(2, "0")} ${suffix}`;
+}
+
+function formatTimeForDisplay(timeStr) {
+  const mins = parseTimeToMinutes(timeStr);
+  if (mins == null) return "--:--";
+  return formatDisplayTimeFromMinutes(mins);
+}
+
 function copingApproxText(mins, cooked) {
   if (mins <= 0) return cooked ? "Clock says done. Brain can leave the building now." : "You’re done. Mentally at least.";
 
@@ -236,6 +272,86 @@ function phaseFromPct(pct) {
 function todayString() {
   const d = new Date();
   return d.toISOString().slice(0, 10);
+}
+
+function resetMilestones() {
+  milestoneFlags.halfway = false;
+  milestoneFlags.finalHour = false;
+  milestoneFlags.breakSoonKey = null;
+}
+
+function showToast(message, icon = "✨") {
+  const stack = document.getElementById("toast-stack");
+  if (!stack) return;
+  if (stack.childElementCount >= 3) {
+    stack.removeChild(stack.firstElementChild);
+  }
+  const toast = document.createElement("div");
+  toast.className = "toast";
+  const text = document.createElement("div");
+  text.className = "toast-text";
+  const iconSpan = document.createElement("span");
+  iconSpan.className = "toast-icon";
+  iconSpan.textContent = icon;
+  const msgSpan = document.createElement("span");
+  msgSpan.textContent = message;
+  text.appendChild(iconSpan);
+  text.appendChild(msgSpan);
+  const progress = document.createElement("div");
+  progress.className = "toast-progress";
+  progress.style.width = "100%";
+  toast.appendChild(text);
+  toast.appendChild(progress);
+  stack.appendChild(toast);
+  requestAnimationFrame(() => {
+    toast.classList.add("visible");
+    requestAnimationFrame(() => {
+      progress.style.width = "0%";
+    });
+  });
+  setTimeout(() => {
+    toast.classList.remove("visible");
+    setTimeout(() => toast.remove(), 350);
+  }, TOAST_DURATION);
+}
+
+function maybeShowRandomToast() {
+  if (typeof document.hidden !== "undefined" && document.hidden) return;
+  if (!RANDOM_TOASTS.length) return;
+  const note = RANDOM_TOASTS[Math.floor(Math.random() * RANDOM_TOASTS.length)];
+  showToast(note.text, note.icon);
+}
+
+function startRandomToasts() {
+  if (randomToastTimerId) clearInterval(randomToastTimerId);
+  if (randomToastKickoffId) clearTimeout(randomToastKickoffId);
+  randomToastKickoffId = setTimeout(() => {
+    maybeShowRandomToast();
+  }, RANDOM_TOAST_KICKOFF);
+  randomToastTimerId = setInterval(() => {
+    maybeShowRandomToast();
+  }, RANDOM_TOAST_INTERVAL);
+}
+
+function handleMilestones(info, nextBreak) {
+  if (!info || !info.valid) return;
+  if (info.pct >= 50 && !milestoneFlags.halfway) {
+    showToast("Halfway milestone reached!", "🧭");
+    milestoneFlags.halfway = true;
+  }
+  if (info.remaining <= 60 && info.remaining > 0 && !milestoneFlags.finalHour) {
+    showToast("Final hour of suffering begins.", "🔥");
+    milestoneFlags.finalHour = true;
+  }
+  if (nextBreak && nextBreak.diff <= 15) {
+    const key = nextBreak.id || `${nextBreak.label}-${nextBreak.time}`;
+    if (milestoneFlags.breakSoonKey !== key) {
+      showToast("Your tea break is soon!", nextBreak.icon || "☕");
+      milestoneFlags.breakSoonKey = key;
+    }
+  } else if (!nextBreak || nextBreak.diff > 25) {
+    milestoneFlags.breakSoonKey = null;
+  }
 }
 
 function shuffleArray(arr) {
@@ -527,12 +643,14 @@ function renderNowTab() {
     summaryText.textContent = "Set your shift times to see your survival stats.";
     document.getElementById("comparison-list").innerHTML = "";
     renderNowWater(info); // will still show goal 0/0
+    renderTimeline(info);
     return;
   }
 
   const nowRaw = getCurrentMinutes();
   let nowM = nowRaw;
   if (nowM < info.startM && info.endM > 24 * 60) nowM += 24 * 60;
+  renderTimeline(info, nowM);
 
   const secondsTotal = info.total * 60;
   const secondsElapsed = clamp((nowM - info.startM) * 60, 0, secondsTotal);
@@ -542,24 +660,28 @@ function renderNowTab() {
   const approx = copingApproxText(info.remaining, state.ui.cooked);
   countdownSub.textContent = approx;
 
-  progressFill.style.width = Math.max(3, info.pct) + "%";
+  const clampedPct = Math.min(100, Math.max(3, info.pct));
+  progressFill.style.width = clampedPct + "%";
   progressMeta.textContent =
     `Shift: ${formatHM(info.total)} | Done: ${formatHM(info.elapsed)} | Left: ${formatHM(info.remaining)}`;
 
   phaseText.textContent = phaseFromPct(info.pct);
 
+  let nextBreak = null;
   if (info.remaining > 0) {
-    const nextBreak = getUpcomingBreak(info, nowM);
+    nextBreak = getUpcomingBreak(info, nowM);
     if (nextBreak) {
-      anchorText.textContent = `Next stop: ☕ ${nextBreak.label} in ${formatHM(nextBreak.diff)} (at ${
-        nextBreak.time
-      }).`;
+      anchorText.textContent = `Next stop: ${nextBreak.icon || "☕"} ${nextBreak.label} in ${formatHM(
+        nextBreak.diff
+      )} (${formatTimeForDisplay(nextBreak.time)}).`;
     } else {
-      anchorText.textContent = `Next stop: 🏠 home in ${formatHM(info.remaining)}.`;
+      const endText = formatDisplayTimeFromMinutes(info.endM);
+      anchorText.textContent = `Next stop: 🏁 shift end at ${endText} (${formatHM(info.remaining)}).`;
     }
   } else {
     anchorText.textContent = "You’re free. At least, you should be.";
   }
+  handleMilestones(info, nextBreak);
 
   // water strip
   const goal = state.settings.waterGoal || 0;
@@ -646,7 +768,86 @@ function renderNowWater(shiftInfo) {
   document.getElementById("now-water-fill").style.width = pct + "%";
 }
 
+function renderTimeline(info, nowM) {
+  const metaEl = document.getElementById("timeline-meta");
+  const markersEl = document.getElementById("timeline-markers");
+  const progressEl = document.getElementById("timeline-progress");
+  if (!metaEl || !markersEl || !progressEl) return;
+  if (!info || !info.valid) {
+    metaEl.textContent = "Add your shift times";
+    progressEl.style.width = "0%";
+    markersEl.innerHTML = "";
+    return;
+  }
+  const startText = formatDisplayTimeFromMinutes(info.startM);
+  const endText = formatDisplayTimeFromMinutes(info.endM);
+  metaEl.textContent = `${startText} → ${endText} · ${formatHM(info.total)}`;
+  progressEl.style.width = clamp(info.pct, 0, 100) + "%";
+  markersEl.innerHTML = "";
+  const markers = [
+    { position: 0, emoji: "🚪", label: "Clock in" },
+    { position: 100, emoji: "🏁", label: "Clock out" }
+  ];
+  if (info.total > 0) {
+    markers.push({ position: 50, emoji: "🧭", label: "Over halfway" });
+    if (info.total > 60) {
+      const finalPct = ((info.total - 60) / info.total) * 100;
+      if (finalPct > 0 && finalPct < 100) {
+        markers.push({ position: finalPct, emoji: "🔥", label: "Final hour begins" });
+      }
+    }
+  }
+  const shiftStartModulo = info.startM % (24 * 60);
+  (state.slacking.breaks || []).forEach((b) => {
+    const mins = parseTimeToMinutes(b.time);
+    if (mins == null) return;
+    let absolute = mins;
+    if (info.endM > 24 * 60 && mins < shiftStartModulo) {
+      absolute += 24 * 60;
+    }
+    if (absolute < info.startM || absolute > info.endM) return;
+    const pct = ((absolute - info.startM) / info.total) * 100;
+    markers.push({ position: pct, emoji: b.icon || "☕", label: b.label || "Break" });
+  });
+  if (typeof nowM === "number" && info.total > 0) {
+    const safeNow = clamp(nowM, info.startM, info.endM);
+    const pct = ((safeNow - info.startM) / info.total) * 100;
+    markers.push({ position: pct, emoji: "🕒", label: "Now", className: "now" });
+  }
+  markers.sort((a, b) => a.position - b.position);
+  markers.forEach((marker) => {
+    const el = document.createElement("div");
+    el.className = "timeline-marker" + (marker.className ? " " + marker.className : "");
+    el.style.left = clamp(marker.position, 0, 100) + "%";
+    const emoji = document.createElement("div");
+    emoji.className = "timeline-marker-emoji";
+    emoji.textContent = marker.emoji;
+    const line = document.createElement("div");
+    line.className = "timeline-marker-line";
+    const label = document.createElement("div");
+    label.textContent = marker.label;
+    el.appendChild(emoji);
+    el.appendChild(line);
+    el.appendChild(label);
+    markersEl.appendChild(el);
+  });
+}
+
 // --------- SLACKING ---------
+
+function normalizeBreaks() {
+  if (!state.slacking) state.slacking = { breaks: [] };
+  if (!Array.isArray(state.slacking.breaks)) {
+    state.slacking.breaks = [];
+    return;
+  }
+  state.slacking.breaks = state.slacking.breaks.map((b, index) => ({
+    id: b.id || `legacy-${index}-${Date.now()}`,
+    label: b.label || "Unnamed break",
+    time: b.time || "",
+    icon: b.icon || "☕"
+  }));
+}
 
 function setSlackingError(msg) {
   const err = document.getElementById("slack-error");
@@ -677,15 +878,20 @@ function renderSlackingWidget() {
     row.className = "slack-item";
     row.dataset.id = item.id;
 
-    const meta = document.createElement("div");
+    const line = document.createElement("div");
+    line.className = "slack-item-line";
+    const emoji = document.createElement("div");
+    emoji.className = "slack-item-emoji";
+    emoji.textContent = item.icon || "☕";
     const label = document.createElement("div");
     label.className = "slack-item-label";
     label.textContent = item.label || "Unnamed break";
     const time = document.createElement("div");
     time.className = "slack-item-time";
-    time.textContent = item.time || "--:--";
-    meta.appendChild(label);
-    meta.appendChild(time);
+    time.textContent = formatTimeForDisplay(item.time);
+    line.appendChild(emoji);
+    line.appendChild(label);
+    line.appendChild(time);
 
     const actions = document.createElement("div");
     actions.className = "slack-item-actions";
@@ -709,7 +915,7 @@ function renderSlackingWidget() {
     actions.appendChild(shuffleBtn);
     actions.appendChild(removeBtn);
 
-    row.appendChild(meta);
+    row.appendChild(line);
     row.appendChild(actions);
     listEl.appendChild(row);
   });
@@ -718,6 +924,7 @@ function renderSlackingWidget() {
 function addSlackBreak() {
   const labelInput = document.getElementById("slack-label");
   const timeInput = document.getElementById("slack-time");
+  const iconSelect = document.getElementById("slack-icon");
   if (!labelInput || !timeInput) return;
   const label = labelInput.value.trim();
   const time = timeInput.value;
@@ -726,10 +933,12 @@ function addSlackBreak() {
     return;
   }
   setSlackingError("");
+  const icon = iconSelect ? iconSelect.value || "☕" : "☕";
   const newBreak = {
     id: Date.now().toString() + Math.random().toString(16).slice(2),
     label,
-    time
+    time,
+    icon
   };
   if (!state.slacking) state.slacking = { breaks: [] };
   state.slacking.breaks.push(newBreak);
@@ -792,7 +1001,13 @@ function getUpcomingBreak(info, nowM) {
     const diff = absolute - nowM;
     if (diff < 0) return;
     if (!best || diff < best.diff) {
-      best = { label: b.label, time: minutesToTimeString(absolute), diff };
+      best = {
+        id: b.id,
+        label: b.label,
+        time: minutesToTimeString(absolute),
+        diff,
+        icon: b.icon || "☕"
+      };
     }
   });
   return best;
@@ -948,6 +1163,7 @@ function initEvents() {
     state.shift.end = endVal || "17:00";
     state.shift.reward = rewardVal;
     saveState();
+    resetMilestones();
     renderNowTab();
     renderWater();
   });
@@ -1077,9 +1293,13 @@ function init() {
     ui: { ...DEFAULT_STATE.ui, ...(state.ui || {}) }
   };
 
+  normalizeBreaks();
+
   applySettingsToUI();
   ensureWaterDate();
   initEvents();
+  resetMilestones();
+  startRandomToasts();
 
   shuffleArray(REMINDERS);
   shuffleArray(TIPS);

@@ -13,7 +13,8 @@
   box-sizing: border-box;
 }
 
-html {
+html,
+body {
   height: 100%;
 }
 
@@ -33,7 +34,7 @@ body {
   justify-content: center;
   padding: 12px;
   user-select: none;
-  overflow-y: auto;
+  overflow: hidden;
 }
 
 input,
@@ -51,10 +52,9 @@ body.no-animations *::after {
 /* Fixed window frame */
 
 .app-frame {
-  width: 960px;
-  max-width: 100%;
-  height: 640px;
-  max-height: 640px;
+  width: min(960px, calc(100vw - 24px));
+  height: min(640px, calc(100vh - 24px));
+  max-height: min(640px, calc(100vh - 24px));
   background: var(--frame-bg);
   border: 3px solid var(--frame-border);
   box-shadow:
@@ -68,16 +68,10 @@ body.no-animations *::after {
 
 @media (max-width: 720px) {
   body {
-    padding: 10px 8px 28px;
-    align-items: flex-start;
-    background-attachment: scroll;
+    padding: 8px;
   }
 
   .app-frame {
-    width: 100%;
-    height: auto;
-    min-height: calc(100vh - 32px);
-    max-height: none;
     border-width: 2px;
     box-shadow:
       0 0 0 2px #f9e3b8,
@@ -135,12 +129,12 @@ body.no-animations *::after {
   gap: 6px;
   overflow: hidden;
   margin-top: 4px;
+  min-height: 0;
 }
 
 @media (max-width: 800px) {
   .app {
     grid-template-columns: minmax(0, 1fr);
-    overflow: visible;
   }
 }
 
@@ -153,13 +147,13 @@ body.no-animations *::after {
   flex-direction: column;
   gap: 6px;
   overflow: hidden;
+  min-height: 0;
 }
 
 @media (max-width: 720px) {
   .panel {
     border-width: 1.5px;
     padding: 8px 6px;
-    overflow: visible;
   }
 }
 
@@ -266,13 +260,29 @@ body.no-animations *::after {
   flex: 1;
   overflow-y: auto;
   padding-right: 4px;
+  min-height: 0;
 }
 
 @media (max-width: 720px) {
   .tab-scroll {
-    overflow: visible;
     padding-right: 0;
   }
+}
+
+.side-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.side-scroll::-webkit-scrollbar,
+.tab-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+
+.side-scroll::-webkit-scrollbar-thumb,
+.tab-scroll::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
 }
 
 .tab-content {
@@ -313,7 +323,8 @@ label {
 }
 
 input[type="time"],
-input[type="text"] {
+input[type="text"],
+select {
   background: #fff4e6;
   border: 1px solid #e1c2a7;
   border-radius: 0;
@@ -322,11 +333,21 @@ input[type="text"] {
   color: var(--text-main);
 }
 
+select {
+  cursor: pointer;
+}
+
 input[type="time"]:focus,
-input[type="text"]:focus {
+input[type="text"]:focus,
+select:focus {
   outline: none;
   border-color: var(--accent);
   box-shadow: 0 0 0 2px #ffd9b8;
+}
+
+.time-input {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
 }
 
 .btn-main {
@@ -413,6 +434,85 @@ input[type="text"]:focus {
 .progress-meta {
   font-size: 0.74rem;
   color: var(--text-soft);
+}
+
+.timeline-block {
+  margin: 8px 0 4px;
+  border-top: 1px dashed #f3d2ab;
+  padding-top: 6px;
+}
+
+.timeline-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.72rem;
+  color: var(--text-soft);
+  gap: 8px;
+}
+
+.timeline-title {
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.timeline-track {
+  position: relative;
+  height: 12px;
+  background: #fff1df;
+  border: 1px solid #f1d2ac;
+  margin: 6px 0 12px;
+  overflow: hidden;
+}
+
+.timeline-progress {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 0;
+  background: linear-gradient(90deg, #f7a86a, #f6c274);
+  transition: width 0.3s ease-out;
+}
+
+.timeline-markers {
+  position: relative;
+  height: 40px;
+}
+
+.timeline-marker {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  font-size: 0.64rem;
+  color: var(--text-soft);
+  width: 74px;
+  pointer-events: none;
+  text-align: center;
+}
+
+.timeline-marker-line {
+  width: 1px;
+  height: 12px;
+  background: #d9b48b;
+}
+
+.timeline-marker-emoji {
+  font-size: 0.88rem;
+}
+
+.timeline-marker.now {
+  color: var(--accent-dark);
+  font-weight: 600;
+}
+
+.timeline-marker.now .timeline-marker-line {
+  background: var(--accent-dark);
 }
 
 .anchor-text {
@@ -564,13 +664,34 @@ input[type="text"]:focus {
 
 .slack-form {
   display: flex;
+  align-items: center;
   gap: 6px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   margin-bottom: 4px;
 }
 
 .slack-form input[type="text"] {
-  flex: 1 1 120px;
+  flex: 1 1 auto;
+  min-width: 140px;
+}
+
+.slack-form .time-input {
+  flex: 0 0 110px;
+}
+
+.slack-icon-select {
+  width: 58px;
+  text-align: center;
+}
+
+@media (max-width: 520px) {
+  .slack-form {
+    flex-wrap: wrap;
+  }
+
+  .slack-form .time-input {
+    flex: 1 1 120px;
+  }
 }
 
 .slacking-head {
@@ -605,6 +726,9 @@ input[type="text"]:focus {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  max-height: 220px;
+  overflow-y: auto;
+  padding-right: 2px;
 }
 
 .slack-item {
@@ -615,16 +739,34 @@ input[type="text"]:focus {
   padding: 4px 6px;
   background: #fffaf2;
   font-size: 0.78rem;
-  gap: 4px;
+  gap: 6px;
+}
+
+.slack-item-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+}
+
+.slack-item-emoji {
+  font-size: 1rem;
 }
 
 .slack-item-label {
   font-weight: 600;
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .slack-item-time {
   color: var(--text-soft);
   font-size: 0.74rem;
+  font-variant-numeric: tabular-nums;
 }
 
 .slack-item-actions {
@@ -641,6 +783,67 @@ input[type="text"]:focus {
   font-size: 0.72rem;
   color: #b30000;
   min-height: 14px;
+}
+
+.toast-stack {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  pointer-events: none;
+  z-index: 30;
+}
+
+.toast {
+  background: rgba(255, 250, 242, 0.96);
+  border: 1px solid #f1d2ac;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
+  min-width: 220px;
+  max-width: 320px;
+  transform: translateX(140%);
+  opacity: 0;
+  transition: transform 0.35s ease, opacity 0.35s ease;
+}
+
+.toast.visible {
+  transform: translateX(0);
+  opacity: 1;
+}
+
+.toast-text {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px 4px;
+  font-size: 0.82rem;
+  color: var(--text-main);
+}
+
+.toast-icon {
+  font-size: 1rem;
+}
+
+.toast-progress {
+  height: 4px;
+  background: var(--accent);
+  width: 100%;
+  transition: width 2s linear;
+}
+
+@media (max-width: 640px) {
+  .toast-stack {
+    left: 12px;
+    right: 12px;
+    top: auto;
+    bottom: 12px;
+  }
+
+  .toast {
+    width: 100%;
+    max-width: none;
+  }
 }
 
 .mood-row {
